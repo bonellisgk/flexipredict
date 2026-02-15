@@ -1,0 +1,5 @@
+{
+  "name": "FlexiPredict - Financial Intelligence Dashboard",
+  "description": "A high-fidelity financial market dashboard featuring real-time price tracking for Gold, Silver, and Stocks, integrated with Gemini AI for professional-grade technical analysis and trade recommendations.",
+  "requestFramePermissions": []
+}
