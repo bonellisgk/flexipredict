@@ -33,9 +33,10 @@ const RECOMMENDATION_SCHEMA = {
 export const getMarketAnalysis = async (asset: Asset): Promise<AIRecommendation> => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    throw new Error("API Key is missing. Check your environment settings.");
+    throw new Error("API Key is missing. Please select a key using the setup button.");
   }
 
+  // Mandatory: Create instance right before making the call to capture updated environment keys
   const ai = new GoogleGenAI({ apiKey });
   
   const prompt = `
@@ -68,7 +69,7 @@ export const getMarketAnalysis = async (asset: Asset): Promise<AIRecommendation>
       config: {
         responseMimeType: 'application/json',
         responseSchema: RECOMMENDATION_SCHEMA,
-        temperature: 0.2, // Low temperature for consistent financial analysis
+        temperature: 0.2,
       },
     });
 
@@ -80,13 +81,19 @@ export const getMarketAnalysis = async (asset: Asset): Promise<AIRecommendation>
       riskLevel: result.riskLevel as RiskLevel,
       targetPrice: result.targetPrice,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini Analysis Failed:", error);
-    // Fallback Mock if API fails for any reason
+    
+    // Explicitly re-throw "not found" errors so the UI can trigger key selection
+    if (error?.message?.includes("not found") || error?.message?.includes("404")) {
+      throw new Error("Requested entity was not found. Please re-select your API key.");
+    }
+
+    // Fallback for non-critical errors
     return {
       recommendation: Recommendation.HOLD,
       confidence: 50,
-      reasoning: ["Technical signals are currently mixed", "Volume is stabilizing", "Wait for clear breakout"],
+      reasoning: ["Technical signals are currently unstable", "Volume is stabilizing", "Check your API connection or key permissions"],
       riskLevel: RiskLevel.MEDIUM
     };
   }

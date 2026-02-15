@@ -16,7 +16,9 @@ import {
   Coins,
   BarChart3,
   Clock,
-  Info
+  Info,
+  Key,
+  ExternalLink
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -29,6 +31,45 @@ import {
 } from 'recharts';
 
 // --- Sub-components ---
+
+const ApiKeySelection: React.FC<{ onKeySelected: () => void }> = ({ onKeySelected }) => {
+  const handleOpenKey = async () => {
+    // @ts-ignore
+    await window.aistudio.openSelectKey();
+    // Proceed immediately as per race condition guidelines
+    onKeySelected();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0E1117] p-4">
+      <div className="w-full max-w-md bg-[#161922] border border-gray-800 rounded-2xl p-8 shadow-2xl text-center">
+        <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-6">
+          <Key className="text-blue-500" size={32} />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-4">API Key Required</h2>
+        <p className="text-gray-400 mb-8 leading-relaxed">
+          To access institutional-grade financial analysis using Gemini 3, you must select an API key from a paid GCP project.
+        </p>
+        <button 
+          onClick={handleOpenKey}
+          className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-3 mb-6"
+        >
+          Select API Key <ArrowRight size={20} />
+        </button>
+        <div className="pt-6 border-t border-gray-800">
+          <a 
+            href="https://ai.google.dev/gemini-api/docs/billing" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-sm text-blue-400 hover:text-blue-300 flex items-center justify-center gap-2"
+          >
+            How to enable billing <ExternalLink size={14} />
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const AssetCard: React.FC<{ 
   asset: Asset; 
@@ -84,7 +125,7 @@ const RecommendationView: React.FC<{
     return (
       <div className="bg-[#1E222D] p-8 rounded-xl border border-gray-800 flex flex-col items-center justify-center min-h-[300px] animate-pulse">
         <RefreshCw className="text-blue-500 animate-spin mb-4" size={40} />
-        <p className="text-gray-400 font-medium">Gemini AI is analyzing market signals...</p>
+        <p className="text-gray-400 font-medium">FlexiPredict AI is analyzing market signals...</p>
         <p className="text-xs text-gray-600 mt-2">Correlating RSI, MACD, and Momentum trends</p>
       </div>
     );
@@ -182,6 +223,17 @@ export default function App() {
   const [isAnalysing, setIsAnalysing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [hasKey, setHasKey] = useState<boolean | null>(null);
+
+  // Key verification
+  useEffect(() => {
+    const checkKey = async () => {
+      // @ts-ignore
+      const exists = await window.aistudio.hasSelectedApiKey();
+      setHasKey(exists);
+    };
+    checkKey();
+  }, []);
 
   // Initialization
   useEffect(() => {
@@ -205,8 +257,15 @@ export default function App() {
     try {
       const result = await getMarketAnalysis(asset);
       setRecommendation(result);
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error("Analysis Error:", e);
+      // Handle "Requested entity was not found" error as per guidelines
+      if (e?.message?.includes("not found") || e?.message?.includes("404")) {
+        setHasKey(false);
+        // @ts-ignore
+        await window.aistudio.openSelectKey();
+        setHasKey(true);
+      }
     } finally {
       setIsAnalysing(false);
     }
@@ -214,10 +273,10 @@ export default function App() {
 
   useEffect(() => {
     const asset = assets.find(a => a.symbol === selectedSymbol);
-    if (asset) {
+    if (asset && hasKey === true) {
       runAnalysis(asset);
     }
-  }, [selectedSymbol, runAnalysis]);
+  }, [selectedSymbol, runAnalysis, hasKey]);
 
   const selectedAsset = useMemo(() => 
     assets.find(a => a.symbol === selectedSymbol), 
@@ -228,6 +287,18 @@ export default function App() {
     a.symbol.toLowerCase().includes(searchTerm.toLowerCase()) || 
     a.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (hasKey === false) {
+    return <ApiKeySelection onKeySelected={() => setHasKey(true)} />;
+  }
+
+  if (hasKey === null) {
+    return (
+      <div className="min-h-screen bg-[#0E1117] flex items-center justify-center">
+        <RefreshCw className="animate-spin text-blue-500" size={32} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0E1117] flex flex-col md:flex-row">
